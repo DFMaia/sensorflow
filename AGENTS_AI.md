@@ -95,8 +95,8 @@ JUnit 5 · Mockito · AssertJ · Testcontainers · Docker Compose.
 | 0 | Criar `flow/sensor-service` (Spring Boot vazio que sobe) | Estrutura Maven, Spring Boot | ✅ |
 | 0.5 | Instalar Docker (necessário antes da etapa 5 / Kafka) | — | ⬜ |
 | 1 | CRUD de **Sensor** (cadastro) já com **MySQL** local | Camadas Controller/Service/Repository, DTO, validação, **SRP** | ✅ |
-| 2 | Testes unitários e de integração da etapa 1 | JUnit 5, Mockito, MockMvc, AssertJ | ⬜ |
-| 3 | **Flyway** (migrations) no lugar do `ddl-auto` + banco de teste separado | Migrations, Testcontainers | ⬜ |
+| 2 | Testes unitários e de integração da etapa 1 | JUnit 5, Mockito, MockMvc, AssertJ | ✅ |
+| 3 | **Flyway** (migrations) no lugar do `ddl-auto` + banco de teste separado | Migrations, Testcontainers | 🟨 |
 | 4 | Endpoint `POST /readings` + regra de alerta (síncrono) | Regras de negócio, **OCP/DIP** (interfaces) | ⬜ |
 | 4.5 | **Simulador de sensores** (`flow/sensor-simulator`): gera leituras falsas e envia muitas por segundo ao `POST /readings` | Cliente HTTP, agendamento, gerar volume | ⬜ |
 | 5 | **Caminho quente** com Kafka (`alert-group`) | Producer/consumer, tópicos, partições, assíncrono | ⬜ |
@@ -157,6 +157,8 @@ Legenda: ⬜ não iniciado · 🟨 em andamento · ✅ concluído
   - `hibernate.jdbc.time_zone: UTC` (Instant salvo em UTC).
   - Consequência: `./mvnw test` (contextLoads) agora **exige o MySQL rodando** e a variável
     SENSOR_DB_PASSWORD definida. Banco de teste separado fica para Etapa 2/3.
+- 2026-10-13: Commits feitos pela IA terminam com a linha
+  `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
 - Rodar sempre com o **Maven Wrapper** (`./mvnw`), não com o `mvn` global.
 
 ## 6. Estado atual
@@ -183,16 +185,40 @@ Legenda: ⬜ não iniciado · 🟨 em andamento · ✅ concluído
 
 ## 7. Próximo passo
 
-1. **Git** (recomendado antes da Etapa 2): `git init` na raiz `flow/` (um repositório para todos
-   os serviços), `.gitignore` na raiz (`.DS_Store`, `.idea/`, `target/`), primeiro commit.
-   O `sensor-service` já tem `.gitignore` do Initializr. git config do Diego já existe.
-2. **Etapa 2 — testes automatizados**, nesta ordem (do mais simples ao mais complexo):
-   a. Teste **unitário** do `SensorService` com **Mockito** (sem Spring, sem banco).
-   b. Teste do **Controller** com `@WebMvcTest` + MockMvc (Service mockado; testa 201/200/404/400).
-   c. Teste do **Repository** com `@DataJpaTest` → precisa de banco: decidir entre MySQL de teste
-      separado ou Testcontainers (exige Docker) — ligado à Etapa 3.
-   Problema conhecido: `contextLoads` depende do MySQL ligado + SENSOR_DB_PASSWORD.
-3. Pendência de segurança: Diego trocar a senha do `sensor_app` (apareceu num print).
+- **Etapa 2 ✅ concluída (2026-10-13)** — testes **escritos pela IA** a pedido explícito do Diego
+  ("pode fazer todos os testes"). **14 testes, BUILD SUCCESS**:
+  - `service/SensorServiceTest` (5) — unitário, `@ExtendWith(MockitoExtension.class)`, `@Mock`
+    repository + `@InjectMocks` service, `ArgumentCaptor`, `ReflectionTestUtils.setField` p/ id.
+  - `controller/SensorControllerTest` (5) — `@WebMvcTest` + MockMvc + `@MockitoBean` service;
+    201+Location, 400 (errors.name/maxTemperature, service nunca chamado), 200 lista, 200 id, 404.
+  - `repository/SensorRepositoryTest` (3) — `@DataJpaTest` +
+    `@AutoConfigureTestDatabase(replace = NONE)` → usa o **MySQL real** (`sensordb`) com
+    **rollback** (nada fica gravado; verificado). `TestEntityManager.clear()` p/ ler do banco.
+  - `SensorServiceApplicationTests` (1) — contextLoads.
+  - Pacotes Boot 4: `org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest`,
+    `org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest`,
+    `org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase`,
+    `org.springframework.boot.jpa.test.autoconfigure.TestEntityManager`,
+    `org.springframework.test.context.bean.override.mockito.MockitoBean`.
+  - Limitação: repository test + contextLoads exigem MySQL ligado + SENSOR_DB_PASSWORD
+    (resolver na Etapa 3 com banco de teste separado/Testcontainers).
+  - Ainda **não commitado**. Próximo: Diego ler/entender os testes; commit "Etapa 2".
+- Depois: **Etapa 3** (Flyway + banco de teste separado). Docker ainda não instalado.
+- **Pendência adiada pelo Diego (2026-10-13):** trocar a senha do `sensor_app` (apareceu em print
+  e está no histórico/log/autosave do Workbench; NÃO está no git). Plano: atualizar
+  SENSOR_DB_PASSWORD no ~/.zshrc → `MYSQL_PWD="$DB_PASSWORD" mysql -u root -e "ALTER USER
+  'sensor_app'@'localhost' IDENTIFIED BY '$SENSOR_DB_PASSWORD';"` → limpar arquivos do Workbench.
+- 2026-10-20: Diego esvaziou a tabela (`TRUNCATE TABLE sensors`) — banco sem dados.
+- **Etapa 3 iniciada (2026-10-20)** — Parte A: Flyway. Instruções passadas:
+  0. commitar Etapa 2 (testes + memória);
+  1. pom: `spring-boot-starter-flyway`, `org.flywaydb:flyway-mysql` (versão vem do Boot: 12.4.0),
+     `spring-boot-starter-flyway-test` (test) — validado pela IA (compila);
+  2. `DROP TABLE sensors` (tabela vazia, criada pelo Hibernate) para o Flyway criá-la do zero
+     (alternativa não usada: `baseline-on-migrate`);
+  3. `src/main/resources/db/migration/V1__create_sensors_table.sql`;
+  4. yaml `ddl-auto: validate`;
+  5. rodar e conferir `flyway_schema_history`.
+  Parte B (depois): banco de teste separado.
 
 ## 8. Diário (log de sessões)
 
