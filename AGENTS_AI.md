@@ -96,7 +96,7 @@ JUnit 5 · Mockito · AssertJ · Testcontainers · Docker Compose.
 | 0.5 | Instalar Docker (necessário antes da etapa 5 / Kafka) | — | ⬜ |
 | 1 | CRUD de **Sensor** (cadastro) já com **MySQL** local | Camadas Controller/Service/Repository, DTO, validação, **SRP** | ✅ |
 | 2 | Testes unitários e de integração da etapa 1 | JUnit 5, Mockito, MockMvc, AssertJ | ✅ |
-| 3 | **Flyway** (migrations) no lugar do `ddl-auto` + banco de teste separado | Migrations, Testcontainers | 🟨 |
+| 3 | **Flyway** (migrations) no lugar do `ddl-auto` + banco de teste separado | Migrations, profiles | ✅ |
 | 4 | Endpoint `POST /readings` + regra de alerta (síncrono) | Regras de negócio, **OCP/DIP** (interfaces) | ⬜ |
 | 4.5 | **Simulador de sensores** (`flow/sensor-simulator`): gera leituras falsas e envia muitas por segundo ao `POST /readings` | Cliente HTTP, agendamento, gerar volume | ⬜ |
 | 5 | **Caminho quente** com Kafka (`alert-group`) | Producer/consumer, tópicos, partições, assíncrono | ⬜ |
@@ -232,7 +232,26 @@ Legenda: ⬜ não iniciado · 🟨 em andamento · ✅ concluído
   ✅ **Parte A (Flyway) CONCLUÍDA (2026-10-20)**: V1 corrigido (`created_at`), histórico zerado e
   reaplicado; `flyway_schema_history` com V1 success=1; `ddl-auto: validate` passa; **14 testes
   BUILD SUCCESS** (verificado pela IA). Ainda não commitado (branch `feature/impementacao-flyway`).
-  Próximo: commit + push da branch (e merge na main); depois **Parte B: banco de teste separado**.
+  Diego commitou, fez merge na main, pull, e criou a branch **`feature/banco-de-teste-com-fltway`**.
+- **Etapa 3 — Parte B (banco de teste separado)** — plano passado em 2026-10-20 (sem Docker ainda):
+  1. criar database `sensordb_test` + GRANT para `sensor_app` (via terminal com $DB_PASSWORD);
+  2. `src/test/resources/application-test.yaml` sobrescrevendo só `spring.datasource.url`
+     → `jdbc:mysql://localhost:3306/sensordb_test` (perfil **test**);
+  3. `@ActiveProfiles("test")` em `SensorRepositoryTest` e `SensorServiceApplicationTests`
+     (os que usam banco; controller/service não precisam);
+  4. rodar testes → Flyway cria `sensors` no `sensordb_test`; dados do `sensordb` intocados.
+  Futuro (com Docker): trocar por **Testcontainers** (sem depender do MySQL local).
+  ✅ **Parte B CONCLUÍDA (2026-10-20)**: `sensordb_test` criado pelo Workbench (GRANT p/ sensor_app),
+  `src/test/resources/application-test.yaml`, `@ActiveProfiles("test")` nos 2 testes com banco.
+  Flyway criou `sensors` no `sensordb_test`. Testes passando. **✅ ETAPA 3 CONCLUÍDA.**
+  Diego vai commitar/push/PR.
+- **Próximo: Etapa 4 — leituras + alertas (síncrono, sem Kafka ainda).** Plano proposto:
+  1. `V2__create_readings_table.sql` + entidade `Reading` (id, sensor_id FK, temperature, measured_at);
+  2. `POST /readings` (ReadingRequest: sensorId, temperature) → valida sensor existe (404) → salva;
+  3. Regra de alerta com interface `AlertRule` (OCP/DIP) — 1ª regra: `MaxTemperatureRule`
+     (temperature > maxTemperature); `V3__create_alerts_table.sql` + entidade `Alert`;
+  4. `GET /alerts` (e talvez `GET /sensors/{id}/readings`);
+  5. testes.
 
 ## 8. Diário (log de sessões)
 
