@@ -219,6 +219,20 @@ Legenda: ⬜ não iniciado · 🟨 em andamento · ✅ concluído
   4. yaml `ddl-auto: validate`;
   5. rodar e conferir `flyway_schema_history`.
   Parte B (depois): banco de teste separado.
+  Estado em 2026-10-20: Etapa 2 commitada e pushada (`14b9ace`, mensagem saiu literalmente
+  `git commit -m "Etapa 2: ..."` — deixada assim, já está no remoto). Diego criou a branch
+  **`feature/impementacao-flyway`** (sic) para a Etapa 3. pom com Flyway ✅, `validate` ✅.
+  ❌ Pasta criada como `db/migrations` (plural) → Diego corrigiu para `db/migration` ✅.
+  Problema seguinte (15:20): V1 foi aplicado às 15:19:39 (criou `sensors`), mas o Diego rodou
+  `DROP TABLE sensors` de novo às 15:20:02 → `flyway_schema_history` diz "V1 aplicado" mas a
+  tabela não existe → `validate` falha "missing table [sensors]". E o V1 tinha erro: coluna
+  `create_at` (deveria ser `created_at`). Solução passada: corrigir V1 + `DROP TABLE
+  flyway_schema_history` (reset, ok só em dev local sem dados) + rodar de novo.
+  Lição registrada: nunca mexer à mão em tabelas gerenciadas pelo Flyway.
+  ✅ **Parte A (Flyway) CONCLUÍDA (2026-10-20)**: V1 corrigido (`created_at`), histórico zerado e
+  reaplicado; `flyway_schema_history` com V1 success=1; `ddl-auto: validate` passa; **14 testes
+  BUILD SUCCESS** (verificado pela IA). Ainda não commitado (branch `feature/impementacao-flyway`).
+  Próximo: commit + push da branch (e merge na main); depois **Parte B: banco de teste separado**.
 
 ## 8. Diário (log de sessões)
 
